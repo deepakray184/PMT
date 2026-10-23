@@ -1,11 +1,14 @@
 {
-  "name": "project-management-tool",
-  "version": "1.0.0",
+  "name": "orbit-project-workspace",
+  "version": "2.0.0",
   "private": true,
-  "description": "SOC Jira-style Kanban dashboard",
+  "description": "Responsive, static project management workspace",
   "scripts": {
-    "dev": "node server.js",
     "start": "node server.js",
-    "preview": "node server.js"
+    "dev": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
