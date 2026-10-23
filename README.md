@@ -1,23 +1,29 @@
-# SOC Project Management Tool
+# Orbit Project Workspace
 
-A dynamic Jira-style Kanban dashboard for SOC project execution.
+A responsive project planning interface with Kanban, list, timeline, overview, and issue detail views.
 
-## Features
+## Current features
 
-- Preloaded with SOC implementation phases and tasks.
-- Four workflow columns: To Do, In Progress, In QA, and Done.
-- Drag-and-drop task movement between columns.
-- Priority, phase, and free-text filters.
-- Assignee display on each task card.
-- Add and delete tasks from the UI.
-- Live summary cards with completion percentage.
-- Persistent local storage for tasks and theme preference.
+- Multiple projects with separate issue boards and configurable issue keys.
+- Create, edit, comment on, search, and filter issues.
+- Drag issues between workflow columns; track type, priority, owner, due date, labels, and story points.
+- Browser-based persistence and dark/light appearance.
+- Keyboard shortcuts: `⌘/Ctrl + K` to search and `⌘/Ctrl + N` to create an issue.
 
 ## Run locally
 
-```bash
-npm install
+Requires Node.js 18 or newer. No package installation is needed.
+
+```sh
 npm start
 ```
 
-Then open `http://localhost:8000`.
+Open the local URL printed by the server. Run the automated smoke checks with:
+
+```sh
+npm test
+```
+
+## Deployment and collaboration boundary
+
+GitHub Pages can host this static interface, but it does not provide a shared database, user authentication, access controls, or an audit trail. Project and issue data currently stays in the browser's local storage and is not shared with colleagues or synchronized across devices. A production corporate deployment needs a server-side identity provider and database with authorization rules, backups, and audit logging before teams use it for company work.
