@@ -3,7 +3,8 @@
 
 create extension if not exists pgcrypto with schema extensions;
 
-create table public.profiles (
+-- Keep the Orbit identity profile separate from the existing SplitMoney profile table.
+create table public.orbit_profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null default 'Orbit user',
   email text not null,
@@ -21,7 +22,7 @@ create table public.workspaces (
 
 create table public.workspace_members (
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  user_id uuid not null references public.profiles(id) on delete cascade,
+  user_id uuid not null references public.orbit_profiles(id) on delete cascade,
   role text not null check (role in ('owner', 'admin', 'member', 'viewer')),
   joined_at timestamptz not null default now(),
   primary key (workspace_id, user_id)
@@ -32,7 +33,7 @@ create table public.projects (
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   name text not null check (length(trim(name)) between 2 and 80),
   key text not null check (key ~ '^[A-Z][A-Z0-9]{1,7}$'),
-  created_by uuid not null default auth.uid() references public.profiles(id),
+  created_by uuid not null default auth.uid() references public.orbit_profiles(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (workspace_id, key),
@@ -54,12 +55,12 @@ create table public.issues (
   description text not null default '',
   status text not null default 'todo' check (status in ('todo', 'inprogress', 'review', 'done')),
   priority text not null default 'medium' check (priority in ('highest', 'high', 'medium', 'low')),
-  assignee_id uuid references public.profiles(id) on delete set null,
+  assignee_id uuid references public.orbit_profiles(id) on delete set null,
   due_date date,
   story_points smallint check (story_points between 0 and 100),
   labels text[] not null default '{}',
   sort_order bigint not null default 0,
-  created_by uuid not null default auth.uid() references public.profiles(id),
+  created_by uuid not null default auth.uid() references public.orbit_profiles(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   foreign key (project_id, workspace_id) references public.projects(id, workspace_id) on delete cascade,
@@ -71,7 +72,7 @@ create table public.issue_comments (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null,
   issue_id uuid not null,
-  author_id uuid not null default auth.uid() references public.profiles(id),
+  author_id uuid not null default auth.uid() references public.orbit_profiles(id),
   body text not null check (length(trim(body)) between 1 and 4000),
   created_at timestamptz not null default now(),
   foreign key (issue_id, workspace_id) references public.issues(id, workspace_id) on delete cascade
@@ -83,7 +84,7 @@ create table public.workspace_invitations (
   email text not null,
   role text not null check (role in ('admin', 'member', 'viewer')),
   token_hash text not null unique,
-  created_by uuid not null references public.profiles(id),
+  created_by uuid not null references public.orbit_profiles(id),
   created_at timestamptz not null default now(),
   expires_at timestamptz not null default now() + interval '7 days',
   accepted_at timestamptz,
@@ -93,7 +94,7 @@ create table public.workspace_invitations (
 create table public.audit_events (
   id bigint generated always as identity primary key,
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  actor_id uuid references public.profiles(id) on delete set null,
+  actor_id uuid references public.orbit_profiles(id) on delete set null,
   event_type text not null,
   entity_type text not null,
   entity_id text not null,
@@ -146,7 +147,7 @@ begin
 end;
 $$;
 
-create trigger profiles_set_updated_at before update on public.profiles
+create trigger orbit_profiles_set_updated_at before update on public.orbit_profiles
 for each row execute function public.set_updated_at();
 create trigger projects_set_updated_at before update on public.projects
 for each row execute function public.set_updated_at();
@@ -234,22 +235,57 @@ for each row execute function public.audit_workspace_row();
 create trigger invitations_audit after insert or update or delete on public.workspace_invitations
 for each row execute function public.audit_workspace_row();
 
-create or replace function public.handle_new_user()
+create or replace function public.handle_new_orbit_user()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare
   new_workspace uuid;
   person_name text;
 begin
   person_name := coalesce(nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''), split_part(new.email, '@', 1), 'Orbit user');
-  insert into public.profiles(id, display_name, email) values (new.id, person_name, lower(new.email));
+  insert into public.orbit_profiles(id, display_name, email) values (new.id, person_name, lower(new.email));
   insert into public.workspaces(name, created_by) values (left(person_name || '''s workspace', 80), new.id) returning id into new_workspace;
   insert into public.workspace_members(workspace_id, user_id, role) values (new_workspace, new.id, 'owner');
   insert into public.projects(workspace_id, name, key, created_by) values (new_workspace, 'My first project', 'FIRST', new.id);
   return new;
 end;
 $$;
-create trigger auth_user_created_orbit after insert on auth.users
-for each row execute function public.handle_new_user();
+create trigger orbit_auth_user_created after insert on auth.users
+for each row execute function public.handle_new_orbit_user();
+
+-- Existing Supabase users predate Orbit; seed profiles and private starter workspaces.
+insert into public.orbit_profiles(id, display_name, email)
+select u.id,
+       coalesce(nullif(trim(u.raw_user_meta_data ->> 'full_name'), ''),
+                nullif(trim(p.display_name), ''),
+                split_part(coalesce(u.email, ''), '@', 1),
+                'Orbit user'),
+       coalesce(lower(u.email), '')
+from auth.users u
+left join public.profiles p on p.id = u.id
+on conflict (id) do nothing;
+
+do $$
+declare
+  existing_user record;
+  new_workspace uuid;
+begin
+  for existing_user in
+    select op.id, op.display_name
+    from public.orbit_profiles op
+    where not exists (
+      select 1 from public.workspace_members wm where wm.user_id = op.id
+    )
+  loop
+    insert into public.workspaces(name, created_by)
+    values (left(existing_user.display_name || '''s workspace', 80), existing_user.id)
+    returning id into new_workspace;
+    insert into public.workspace_members(workspace_id, user_id, role)
+    values (new_workspace, existing_user.id, 'owner');
+    insert into public.projects(workspace_id, name, key, created_by)
+    values (new_workspace, 'My first project', 'FIRST', existing_user.id);
+  end loop;
+end;
+$$;
 
 create or replace function public.create_workspace_invitation(p_workspace_id uuid, p_email text, p_role text)
 returns table(invitation_token text, expires_at timestamptz)
@@ -300,7 +336,7 @@ revoke all on function public.accept_workspace_invitation(text) from public, ano
 grant execute on function public.create_workspace_invitation(uuid, text, text) to authenticated;
 grant execute on function public.accept_workspace_invitation(text) to authenticated;
 
-alter table public.profiles enable row level security;
+alter table public.orbit_profiles enable row level security;
 alter table public.workspaces enable row level security;
 alter table public.workspace_members enable row level security;
 alter table public.projects enable row level security;
@@ -310,13 +346,13 @@ alter table public.issue_comments enable row level security;
 alter table public.workspace_invitations enable row level security;
 alter table public.audit_events enable row level security;
 
-create policy profiles_read_workspace_members on public.profiles for select to authenticated
+create policy orbit_profiles_read_workspace_members on public.orbit_profiles for select to authenticated
 using (id = (select auth.uid()) or exists (
   select 1 from public.workspace_members mine
   join public.workspace_members theirs on theirs.workspace_id = mine.workspace_id
-  where mine.user_id = (select auth.uid()) and theirs.user_id = profiles.id
+  where mine.user_id = (select auth.uid()) and theirs.user_id = orbit_profiles.id
 ));
-create policy profiles_update_self on public.profiles for update to authenticated
+create policy orbit_profiles_update_self on public.orbit_profiles for update to authenticated
 using (id = (select auth.uid())) with check (id = (select auth.uid()));
 
 create policy workspaces_read_members on public.workspaces for select to authenticated
@@ -360,7 +396,7 @@ using (public.has_workspace_role(workspace_id, array['owner', 'admin']));
 create policy audit_read_admins on public.audit_events for select to authenticated
 using (public.has_workspace_role(workspace_id, array['owner', 'admin']));
 
-grant select, update on public.profiles to authenticated;
+grant select, update on public.orbit_profiles to authenticated;
 grant select, update on public.workspaces to authenticated;
 grant select on public.workspace_members to authenticated;
 grant insert, select, update, delete on public.projects to authenticated;
