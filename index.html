@@ -11,9 +11,24 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <section class="auth-screen" id="authScreen">
+    <form class="auth-card" id="authForm">
+      <a class="brand auth-brand" href="#"><span class="brand-mark">O</span><span>orbit<span class="brand-dot">.</span></span></a>
+      <span class="eyebrow">SECURE PROJECT WORKSPACE</span>
+      <h1 id="authTitle">Sign in to Orbit</h1>
+      <p class="auth-copy" id="authCopy">Use your work account to access shared projects.</p>
+      <label class="field-label hidden" id="fullNameField">Full name<input id="authName" autocomplete="name" maxlength="80" placeholder="Your name" /></label>
+      <label class="field-label">Work email<input id="authEmail" type="email" autocomplete="email" required placeholder="you@company.com" /></label>
+      <label class="field-label">Password<input id="authPassword" type="password" autocomplete="current-password" required minlength="10" placeholder="At least 10 characters" /></label>
+      <p class="auth-error" id="authError" aria-live="polite"></p>
+      <button class="btn btn-primary auth-submit" id="authSubmit" type="submit">Sign in</button>
+      <button class="auth-switch" id="authModeToggle" type="button">Create an account</button>
+      <p class="setup-note hidden" id="setupNote">Backend setup is required. Configure Supabase Project URL and publishable key in <code>config.js</code>, then apply the database migrations.</p>
+    </form>
+  </section>
   <aside class="sidebar">
     <a class="brand" href="#board" aria-label="Orbit home"><span class="brand-mark">O</span><span>orbit<span class="brand-dot">.</span></span></a>
-    <div class="workspace-switch"><span class="workspace-icon">S</span><span><b>SplitMoney</b><small>Workspace</small></span><span class="chevron">⌄</span></div>
+    <label class="workspace-switch"><span class="workspace-icon">O</span><span><b id="workspaceName">Workspace</b><small id="workspaceRole">Loading</small></span><select id="workspacePicker" aria-label="Switch workspace"></select></label>
     <nav class="primary-nav" aria-label="Main navigation">
       <button class="nav-item" data-view="overview"><span>◫</span> Overview</button>
       <button class="nav-item active" data-view="board"><span>▦</span> Board</button>
@@ -22,7 +37,7 @@
     </nav>
     <div class="nav-section"><span>YOUR PROJECTS</span><button class="icon-button" id="addProjectBtn" aria-label="Add project">＋</button></div>
     <div id="projectsList"></div>
-    <div class="sidebar-bottom"><button class="nav-item" id="themeToggle"><span>☼</span> Appearance</button><div class="profile"><span class="avatar avatar-purple">DR</span><span><b>Deepak Ray</b><small>Project admin</small></span><span class="chevron">⌄</span></div></div>
+    <div class="sidebar-bottom"><button class="nav-item" id="themeToggle"><span>☼</span> Appearance</button><div class="profile"><span class="avatar avatar-purple" id="userAvatar">U</span><span><b id="currentUserName">Signed out</b><small id="currentUserEmail">—</small></span><button class="icon-button signout-button" id="signOutBtn" type="button" title="Sign out" aria-label="Sign out">↪</button></div></div>
   </aside>
   <main class="main">
   <header class="topbar"><div class="breadcrumbs"><span>Projects</span><span class="slash">/</span><b id="projectBreadcrumb">SplitMoney</b><span class="slash">/</span><span id="breadcrumbView">Board</span></div><div class="top-actions"><label class="global-search"><span>⌕</span><input id="globalSearch" placeholder="Search issues…" /><kbd>⌘ K</kbd></label><button class="icon-button" aria-label="Notifications">♧<i class="notification-dot"></i></button><button class="help-button" aria-label="Help">?</button><span class="avatar avatar-purple">DR</span></div></header>
@@ -42,8 +57,11 @@
   </main>
   <dialog id="issueDialog"><form id="issueForm"><div class="dialog-top"><div><span class="eyebrow" id="issueKeyLabel">NEW ISSUE</span><h2 id="dialogTitle">Create issue</h2></div><button type="button" class="icon-button" id="closeDialog" aria-label="Close">×</button></div><input type="hidden" id="editingId" /><label class="field-label">Summary <input id="titleInput" required maxlength="120" placeholder="What needs to be done?" /></label><label class="field-label">Description <textarea id="descriptionInput" rows="4" placeholder="Add details, context, and acceptance criteria…"></textarea></label><div class="form-row"><label class="field-label">Issue type<select id="typeInput"><option value="task">Task</option><option value="story">Story</option><option value="bug">Bug</option><option value="epic">Epic</option></select></label><label class="field-label">Status<select id="statusInput"><option value="todo">To do</option><option value="inprogress">In progress</option><option value="review">In review</option><option value="done">Done</option></select></label></div><div class="form-row"><label class="field-label">Priority<select id="priorityInput"><option value="highest">Urgent</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label><label class="field-label">Assignee<select id="assigneeInput"></select></label></div><div class="form-row"><label class="field-label">Due date<input id="dueInput" type="date" /></label><label class="field-label">Story points<input id="pointsInput" type="number" min="0" max="100" placeholder="—" /></label></div><label class="field-label">Labels <input id="labelsInput" placeholder="Add labels separated by commas" /></label><div class="dialog-footer"><button type="button" class="btn btn-quiet" id="cancelDialog">Cancel</button><button type="submit" class="btn btn-primary" id="saveIssue">Create issue</button></div></form></dialog>
   <dialog id="projectDialog"><form id="projectForm"><div class="dialog-top"><div><span class="eyebrow">WORKSPACE</span><h2>Create a project</h2></div><button type="button" class="icon-button" id="closeProjectDialog" aria-label="Close">×</button></div><label class="field-label">Project name<input id="projectNameInput" required maxlength="48" placeholder="e.g. Mobile App" /></label><label class="field-label">Project key<input id="projectKeyInput" maxlength="8" placeholder="e.g. MOB (optional)" /></label><p class="form-note">The key prefixes issue IDs in this project, like MOB-1. Leave it blank to generate one from the project name.</p><div class="dialog-footer"><button type="button" class="btn btn-quiet" id="cancelProjectDialog">Cancel</button><button type="submit" class="btn btn-primary">Create project</button></div></form></dialog>
+  <dialog id="inviteDialog"><form id="inviteForm"><div class="dialog-top"><div><span class="eyebrow">TEAM ACCESS</span><h2>Invite a teammate</h2></div><button type="button" class="icon-button" id="closeInviteDialog" aria-label="Close">×</button></div><label class="field-label">Work email<input id="inviteEmail" type="email" required placeholder="colleague@company.com" /></label><label class="field-label">Role<select id="inviteRole"><option value="member">Member · edit issues</option><option value="viewer">Viewer · read only</option><option value="admin">Admin · manage workspace</option></select></label><p class="form-note">Orbit creates a 7-day invite link for this email. Send it to the teammate through your approved company channel.</p><p class="invite-result hidden" id="inviteResult"></p><div class="dialog-footer"><button type="button" class="btn btn-quiet" id="cancelInvite">Cancel</button><button type="submit" class="btn btn-primary" id="sendInvite">Create invite link</button></div></form></dialog>
   <dialog id="detailDialog"><section id="detailContent"></section></dialog>
   <div id="toast" class="toast" role="status"></div>
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
 </body>
 </html>
