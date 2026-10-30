@@ -3,5 +3,5 @@
 // Never put a secret or service_role key in this browser-delivered file.
 window.ORBIT_CONFIG = {
   supabaseUrl: 'https://yevxvvwncmlxobxuybes.supabase.co',
-  publishableKey: ''
+  publishableKey: 'sb_publishable_aJCCf_EkD5nJHoXE2P_FeQ__Xmw19a2'
 };
