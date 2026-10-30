@@ -24,7 +24,7 @@
       query(client.from('workspace_members').select('user_id,role').eq('workspace_id',workspaceId))
     ]);
     projects=projectRows; members=[];
-    if(memberRows.length){const ids=memberRows.map(m=>m.user_id);const profiles=await query(client.from('profiles').select('id,display_name,email').in('id',ids));members=profiles.map((m,i)=>({id:m.id,name:m.display_name||m.email,initials:(m.display_name||m.email||'?').split(/[\s@]/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase(),color:['purple','blue','green','orange'][i%4],role:memberRows.find(r=>r.user_id===m.id)?.role,email:m.email}));}
+    if(memberRows.length){const ids=memberRows.map(m=>m.user_id);const profiles=await query(client.from('orbit_profiles').select('id,display_name,email').in('id',ids));members=profiles.map((m,i)=>({id:m.id,name:m.display_name||m.email,initials:(m.display_name||m.email||'?').split(/[\s@]/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase(),color:['purple','blue','green','orange'][i%4],role:memberRows.find(r=>r.user_id===m.id)?.role,email:m.email}));}
     if(!activeProjectId||!projects.some(p=>p.id===activeProjectId))activeProjectId=projects[0]?.id||null;
     localStorage.setItem('orbit-active-project-v1',activeProjectId||'');
     const issueRows=projects.length?await query(client.from('issues').select('*').eq('workspace_id',workspaceId).order('sort_order').order('created_at')):[];
